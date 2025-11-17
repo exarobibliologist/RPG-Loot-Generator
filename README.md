@@ -20,4 +20,4 @@ This list will be saved when you close the app, so you can reuse it again and ag
 
 It's that simple!
 
-![Preview Picture](https://i.imgur.com/Q1Cyxcj.png)
+![Preview Picture](https://i.imgur.com/BSIlRMz.png)
