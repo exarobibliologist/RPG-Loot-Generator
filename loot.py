@@ -6,6 +6,70 @@ import re
 
 LOOT_FILE = "loot_table.txt"
 
+def apply_striping():
+    """Applies alternating background colors (zebra striping) to the loot_box."""
+    
+    # Define the colors
+    COLOR_EVEN = "#FFFFFF" # White
+    COLOR_ODD = "#BBBBBB"  # Light Gray
+    
+    # 1. Clear existing tags
+    loot_box.tag_remove("color_even", "1.0", tk.END)
+    loot_box.tag_remove("color_odd", "1.0", tk.END)
+    
+    # 2. Configure the tags
+    loot_box.tag_configure("color_even", background=COLOR_EVEN)
+    loot_box.tag_configure("color_odd", background=COLOR_ODD)
+
+    # 3. Iterate through lines and apply tags
+    line_count = int(loot_box.index('end-1c').split('.')[0])
+    visible_line_counter = 0 
+    
+    for i in range(1, line_count + 1):
+        line_start = f"{i}.0"
+        # Ensure the tag extends past the line content to fill the background
+        line_end = f"{i}.end" + " + 1c" 
+        
+        # Check if the line is not empty (important for accurate counting)
+        line_content = loot_box.get(line_start, f"{i}.end").strip()
+        
+        if line_content:
+            visible_line_counter += 1
+            
+            # Apply color based on parity of visible lines
+            if visible_line_counter % 2 == 0:
+                loot_box.tag_add("color_even", line_start, line_end)
+            else:
+                loot_box.tag_add("color_odd", line_start, line_end)
+
+def apply_result_striping():
+    """Applies alternating background colors to the generated results in result_box."""
+    
+    # Define the colors
+    COLOR_EVEN = "#f4f4f4" # Default result background (matches frame bg)
+    COLOR_ODD = "#E0E0E0"  # Slightly darker gray for contrast
+    
+    result_box.tag_remove("result_even", "1.0", tk.END)
+    result_box.tag_remove("result_odd", "1.0", tk.END)
+    
+    # Configure the tags
+    result_box.tag_configure("result_even", background=COLOR_EVEN)
+    result_box.tag_configure("result_odd", background=COLOR_ODD)
+    
+    line_count = int(result_box.index('end-1c').split('.')[0])
+    
+    # Start loop from line 3 to skip the "Random Seed" and blank line
+    for i in range(3, line_count + 1): 
+        line_start = f"{i}.0"
+        line_end = f"{i}.end" + " + 1c"
+        
+        # (i - 2) maps line 3 to the 1st result (odd count), line 4 to 2nd (even count), etc.
+        if (i - 2) % 2 == 0:
+            result_box.tag_add("result_even", line_start, line_end)
+        else:
+            result_box.tag_add("result_odd", line_start, line_end)
+
+
 def update_counter(event=None):
     """Update the label showing how many lines are entered."""
     lines = loot_box.get("1.0", tk.END).strip().split("\n")
@@ -18,6 +82,10 @@ def update_counter(event=None):
         counter_label.config(fg="red")
     else:
         counter_label.config(fg="green")
+        
+    # Call striping function every time the key is released
+    apply_striping() 
+
 
 def save_loot_table():
     """Save loot table to file automatically when closing."""
@@ -43,21 +111,22 @@ def roll_dynamic_quantity(loot_item):
     and replaces them with the actual rolled result.
     """
     
-    # 1. Handle Dice Roll Format: {XdY} or {X d Y}
+    # 1. Handle Dice Roll Format: {XdY} or {X d Y} - ORIGINAL, RELIABLE REGEX
     def dice_replacer(match):
         num_dice = int(match.group(1))
         die_sides = int(match.group(2))
         roll_result = sum(random.randint(1, die_sides) for _ in range(num_dice))
         return str(roll_result)
 
-    # 2. Handle Range Format: {Min-Max}
+    # 2. Handle Range Format: {Min-Max} - ORIGINAL, RELIABLE REGEX
     def range_replacer(match):
         min_val = int(match.group(1))
         max_val = int(match.group(2))
         if min_val > max_val:
-            min_val, max_val = max_val, min_val 
+            min_val, max_val = max_val, min_val  
         return str(random.randint(min_val, max_val))
 
+    # Revert to the original, stricter regex patterns
     loot_item = re.sub(r'\{(\d+)\s*[dD]\s*(\d+)\}', dice_replacer, loot_item)
     loot_item = re.sub(r'\{(\d+)\s*-\s*(\d+)\}', range_replacer, loot_item)
     
@@ -75,11 +144,9 @@ def parse_loot_weights(loot_lines):
     for line in loot_lines:
         match = weight_pattern.match(line)
         if match:
-            # Found a line with a weight (e.g., "100: Coins")
             weight = int(match.group(1))
             item = match.group(2).strip()
         else:
-            # No weight specified (e.g., "Sword")
             weight = 1
             item = line.strip()
         
@@ -115,12 +182,10 @@ def generate_loot():
     loot_items, loot_weights = parse_loot_weights(raw_loot_lines)
     
     if not loot_items:
-         messagebox.showerror("Error", "No valid loot items found.")
-         return
+          messagebox.showerror("Error", "No valid loot items found.")
+          return
 
     # 2. Select the raw loot items using weights
-    # k=NUM_RESULTS is the number of results to select.
-    # weights=loot_weights assigns the probability for each item.
     selected_loot = random.choices(
         population=loot_items, 
         weights=loot_weights, 
@@ -133,12 +198,15 @@ def generate_loot():
     loot_results = [f"{i+1:02d}: {item}" for i, item in enumerate(final_loot)]
 
     result_box.delete("1.0", tk.END)
-    result_box.insert(tk.END, f"Random Seed: {random.randint(100000, 999999)}\n\n") 
+    result_box.insert(tk.END, f"Random Seed: {random.randint(100000, 999999)}\n\n")  
     result_box.insert(tk.END, "\n".join(loot_results))
+    
+    # 4. Apply striping to the results box
+    apply_result_striping()
 
 # --- GUI setup ---
 root = tk.Tk()
-root.title("Loot Drop Generator v2.1.1")
+root.title("Loot Drop Generator v2.1.5") 
 root.geometry("950x600")
 
 # Left panel (loot list)
@@ -153,21 +221,21 @@ title_frame = tk.Frame(header_frame)
 title_frame.pack(side=tk.LEFT, fill=tk.Y)
 
 tk.Label(title_frame, text="Loot Table:", font=("Arial", 12, "bold")).pack(anchor="w")
-# --- MODIFIED: Updated instruction text for weights ---
 instruction_text = (
     "Prefix with **WEIGHT:ITEM** (e.g., 100: Coins) for weighting.\n"
     "Use {XdY} (dice) or {Min-Max} (range) for dynamic values."
 )
 tk.Label(title_frame, text=instruction_text, 
-         font=("Arial", 9, "italic"), fg="gray40", justify=tk.LEFT).pack(anchor="w")
-# ------------------------------------------------------------------------
+          font=("Arial", 9, "italic"), fg="gray40", justify=tk.LEFT).pack(anchor="w")
 
 counter_label = tk.Label(header_frame, text="Loot Items: 0", font=("Arial", 10))
 counter_label.pack(side=tk.RIGHT)
 
 loot_box = scrolledtext.ScrolledText(frame_left, width=40, height=30, wrap=tk.WORD)
 loot_box.pack(fill=tk.BOTH, expand=True)
-loot_box.bind("<KeyRelease>", update_counter)
+
+# Bind update_counter (which calls apply_striping)
+loot_box.bind("<KeyRelease>", update_counter) 
 
 # Right panel (results)
 frame_right = tk.Frame(root)
@@ -194,6 +262,9 @@ generate_btn.pack(side=tk.BOTTOM, pady=10)
 
 # Load previous loot list (if any)
 load_loot_table()
+
+# Apply striping immediately after loading the table
+apply_striping() 
 
 # Auto-save on close
 root.protocol("WM_DELETE_WINDOW", on_close)
